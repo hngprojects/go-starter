@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -16,14 +17,14 @@ import (
 )
 
 func main() {
-	log := logger.New(os.Getenv("LOG_LEVEL"))
-	slog.SetDefault(log)
-
 	cfg, err := config.Load()
 	if err != nil {
-		log.Error("failed to load config", "err", err)
+		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 		os.Exit(1)
 	}
+
+	log := logger.New(cfg.LogLevel, cfg.LogFormat, cfg.Env)
+	slog.SetDefault(log)
 
 	srv := server.New(cfg, log)
 

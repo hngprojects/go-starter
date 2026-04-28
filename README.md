@@ -167,6 +167,7 @@ All config is loaded from environment variables in `internal/config/config.go`. 
 | `APP_ENV`       | `development` | Environment label (`development`, `production`)   |
 | `PORT`          | `8080`        | HTTP listen port                                  |
 | `LOG_LEVEL`     | `info`        | One of `debug`, `info`, `warn`, `error`           |
+| `LOG_FORMAT`    | _(auto)_      | `pretty` or `json`. Defaults to `pretty` when `APP_ENV=development`, else `json` |
 | `DATABASE_URL`  | _(unset)_     | Postgres connection string — required for migrations |
 
 ---

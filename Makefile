@@ -12,6 +12,14 @@ DB_URL     ?= $(DATABASE_URL)
 
 MIGRATE_VERSION := v4.17.1
 
+# Locate the `migrate` CLI: prefer $PATH, otherwise fall back to $(go env GOPATH)/bin.
+# Tip: add `$(go env GOPATH)/bin` to your shell's PATH to drop the fallback.
+MIGRATE ?= $(shell command -v migrate 2>/dev/null || echo $(shell go env GOPATH 2>/dev/null)/bin/migrate)
+
+# This codebase is pure Go — disable cgo by default.
+# Override with `CGO_ENABLED=1 make ...` if you ever pull in a cgo dependency.
+export CGO_ENABLED ?= 0
+
 # ----------------------------------------------------------------------
 # Help
 # ----------------------------------------------------------------------
@@ -64,34 +72,41 @@ install-tools: ## Install golang-migrate CLI
 # Requires DATABASE_URL to be set, e.g.:
 #   postgres://user:pass@localhost:5432/dbname?sslmode=disable
 # ----------------------------------------------------------------------
-_check-db:
+_check-migrate:
+	@if [ ! -x "$(MIGRATE)" ]; then \
+	  echo "ERROR: migrate CLI not found at '$(MIGRATE)'."; \
+	  echo "       Run 'make install-tools', then re-run this target."; \
+	  exit 1; \
+	fi
+
+_check-db: _check-migrate
 	@if [ -z "$(DB_URL)" ]; then \
 	  echo "ERROR: DATABASE_URL is not set. Export it or copy .env.example to .env."; \
 	  exit 1; \
 	fi
 
 migrate-up: _check-db ## Apply all pending migrations
-	migrate -path $(MIGRATIONS) -database "$(DB_URL)" up
+	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" up
 
 migrate-down: _check-db ## Rollback the most recent migration
-	migrate -path $(MIGRATIONS) -database "$(DB_URL)" down 1
+	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" down 1
 
-migrate-create: ## Create new migration files: make migrate-create NAME=add_users
+migrate-create: _check-migrate ## Create new migration files: make migrate-create NAME=add_users
 	@if [ -z "$(NAME)" ]; then \
 	  echo "ERROR: NAME is required, e.g. make migrate-create NAME=add_users"; \
 	  exit 1; \
 	fi
-	migrate create -ext sql -dir $(MIGRATIONS) -seq $(NAME)
+	$(MIGRATE) create -ext sql -dir $(MIGRATIONS) -seq $(NAME)
 
 migrate-version: _check-db ## Print current migration version
-	migrate -path $(MIGRATIONS) -database "$(DB_URL)" version
+	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" version
 
 migrate-force: _check-db ## Force a version to fix a dirty state: make migrate-force VERSION=1
 	@if [ -z "$(VERSION)" ]; then \
 	  echo "ERROR: VERSION is required, e.g. make migrate-force VERSION=1"; \
 	  exit 1; \
 	fi
-	migrate -path $(MIGRATIONS) -database "$(DB_URL)" force $(VERSION)
+	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" force $(VERSION)
 
 migrate-drop: _check-db ## Drop EVERYTHING in the database (destructive)
-	migrate -path $(MIGRATIONS) -database "$(DB_URL)" drop -f
+	$(MIGRATE) -path $(MIGRATIONS) -database "$(DB_URL)" drop -f
